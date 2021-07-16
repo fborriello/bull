@@ -17,12 +17,17 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
-      - name: Extract build information
+      - name: "Extract build information"
         id: build_info
         run: |
           echo ::set-output name=SOURCE_NAME::${GITHUB_REF#refs/*/}
           echo ::set-output name=SOURCE_BRANCH::${GITHUB_REF#refs/heads/}
           echo ::set-output name=TAG_NAME::${GITHUB_REF#refs/tags/}
+      - name: "Project version set"
+        env:
+          TAG_NAME: ${{ steps.build_info.outputs.TAG_NAME }}
+        run: |
+          mvn versions:set -D newVersion=${TAG_NAME}
       - name: "Set up JDK 15"
         uses: actions/setup-java@v2
         with:
@@ -40,21 +45,17 @@ jobs:
           SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.build_info.outputs.TAG_NAME }}
         run: |
-          mvn versions:set -D newVersion=${TAG_NAME}
           mvn install sonar:sonar -Dsonar.projectKey=BULL -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN -P compatibility-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -q
       - name: "Site build"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.build_info.outputs.TAG_NAME }}
         run: |
-          mvn versions:set -D newVersion=${TAG_NAME}
-          mvn site:site javadoc:aggregate -P site-release -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -q
+          mvn site:site javadoc:aggregate -P site-release -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -q -DskipTests=true
       - name: "Deploy GitHub Pages"
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          personal_token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           publish_dir: ./target/site
           user_name: eg-oss-ci
           user_email: oss@expediagroup.com
@@ -63,7 +64,16 @@ jobs:
           HCOM_SONATYPE_USERNAME: ${{ secrets.HCOM_SONATYPE_USERNAME }}
           HCOM_SONATYPE_PASSWORD: ${{ secrets.HCOM_SONATYPE_PASSWORD }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
-          TAG_NAME: ${{ steps.build_info.outputs.TAG_NAME }}
         run: |
-          mvn versions:set -D newVersion=${TAG_NAME}
           mvn deploy --settings $GITHUB_WORKSPACE/settings.xml -B -U -P release -DskipTests=true
+      - name: "Send Slack Notification"
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: releases
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_ICON: https://raw.githubusercontent.com/ExpediaGroup/bull/master/docs/site/resources/images/bell.png
+          SLACK_TITLE: "BULL version: ${{ steps.build_info.outputs.TAG_NAME }} available."
+          SLACK_MESSAGE: "<https://github.com/ExpediaGroup/bull/blob/master/CHANGELOG.md|Check out the implemented changes in the *CHANGELOG* file>"
+          SLACK_USERNAME: "bull-notifier"
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_FOOTER: "Powered by BULL notifier"

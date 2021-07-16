@@ -11,7 +11,7 @@ It's the only library able to transform Mutable, Immutable, and Mixed bean witho
 
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.hotels.beans/bull-bean-transformer/badge.svg?subject=maven-central&color=blue)](https://maven-badges.herokuapp.com/maven-central/com.hotels.beans/bull-bean-transformer)
 [![Javadocs](http://www.javadoc.io/badge/com.hotels.beans/bull-bean-transformer.svg?color=blue)](http://www.javadoc.io/doc/com.hotels.beans/bull-bean-transformer)
-[![Build Status](https://github.com/ExpediaGroup/bull/actions/workflows/github-default-actions.yml/badge.svg?branch=master)](https://github.com/ExpediaGroup/bull/actions/workflows/github-default-actions.yml/badge.svg?branch=master)
+[![Build Status](https://github.com/ExpediaGroup/bull/actions/workflows/github-default-actions.yml/badge.svg?branch=master)](https://github.com/ExpediaGroup/bull/actions)
 [![Join the chat at https://join.slack.com/t/bull-crew/shared_invite/enQtNjM1MTE5ODg1MTQzLWI5ODhhYTQ2OWQxODgwYzU1ODMxMWJiZDkzODM3OTJkZjBlM2MwMTI3ZWZjMmU0OGZmN2RmNjg4NWI2NTMzOTk](https://img.shields.io/badge/chat-on%20slack-ff69b4.svg)](https://join.slack.com/t/bull-crew/shared_invite/enQtNjM1MTE5ODg1MTQzLWI5ODhhYTQ2OWQxODgwYzU1ODMxMWJiZDkzODM3OTJkZjBlM2MwMTI3ZWZjMmU0OGZmN2RmNjg4NWI2NTMzOTk)
 
 [![GitHub site](https://img.shields.io/badge/GitHub-site-blue.svg)](https://opensource.expediagroup.com/bull/)
@@ -53,9 +53,13 @@ It contains all the modules available in the project
 </dependency>
 ```
 
-**The project provides two different builds**, one compatible with `jdk 8` (or above) and one with `jdk 11` or above.
+**The project provides two different builds**, one compatible with `jdk 8` (or above),
+one with `jdk 11` and on with `jdk 15` or above.
 
-In case you need to integrate it in a `jdk 8` please refer to [CHANGELOG-JDK8](CHANGELOG-JDK8.md) file or [CHANGELOG](CHANGELOG.md) otherwise.
+In case you need to integrate it in a:
+* `jdk 8` please refer to [CHANGELOG-JDK8](CHANGELOG-JDK8.md)
+* `jdk 11` please refer to [CHANGELOG-JDK11](CHANGELOG-JDK11.md)
+* `jdk 15` [CHANGELOG](CHANGELOG.md)
 
 * #### Suggestions
 
