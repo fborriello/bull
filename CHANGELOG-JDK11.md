@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+### [2.1.1-jdk11] 2022.06.09
+* Fixes an issue that was preventing skipping the injection for a given field. For more info about the feature see [here](README.md#skip-transformation-on-a-given-set-of-fields).
+
 ### [2.1.0-jdk11] 2022.01.10
 #### Changed
 * Updated `hibernate-validator` version to `6.2.1.Final` (was `7.0.1.Final`). This replaces the jakarta validation with the javax one.
@@ -111,11 +114,11 @@ All notable changes to this project will be documented in this file.
 * Module `bean-utils-library` has been relocated into `bull-bean-transformer`.
 * The following classes has been deprecated, please find below the complete list and the new one to be used:
 
-  | Deprecated | **New one** |
-        | :----------- | :----------- |
-  | `com.expediagroup.beans.model.FieldMapping` | `FieldMapping` |
+  | Deprecated                                      | **New one**        |
+  |:------------------------------------------------|:-------------------|
+  | `com.expediagroup.beans.model.FieldMapping`     | `FieldMapping`     |
   | `com.expediagroup.beans.model.FieldTransformer` | `FieldTransformer` |
-  | `com.expediagroup.beans.Transformer` | `Transformer` |
+  | `com.expediagroup.beans.Transformer`            | `Transformer`      |
 
 ### [1.5.0] 2019.08.06
 #### Added
