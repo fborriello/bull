@@ -57,6 +57,7 @@
         <testng.version>7.12.0</testng.version>
         <assertj-core.version>3.27.7</assertj-core.version>
         <joda-time.version>2.14.1</joda-time.version>
+        <kotlin.version>1.9.25</kotlin.version>
         <!-- validation dependencies -->
         <hibernate-validator.version>9.0.0.Final</hibernate-validator.version>
         <jboss-logging.version>3.6.3.Final</jboss-logging.version>
@@ -211,6 +212,12 @@
                 <version>${joda-time.version}</version>
                 <scope>test</scope>
             </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib</artifactId>
+                <version>${kotlin.version}</version>
+                <scope>test</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -242,6 +249,28 @@
     <!-- profile configuration -->
     <profiles>
         <!-- modules profiles -->
+        <profile>
+            <id>skip-performance-tests</id>
+            <activation>
+                <property>
+                    <name>skipPerformanceTests</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/PerformanceTest.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>relaxed</id>
             <properties>
@@ -281,20 +310,10 @@
                 <checkstyle.includeTestSourceDirectory>false</checkstyle.includeTestSourceDirectory>
                 <spotless.config.execution.skip>true</spotless.config.execution.skip>
                 <test.coverage.check.skip>true</test.coverage.check.skip>
+                <skipPerformanceTests>true</skipPerformanceTests>
             </properties>
             <build>
                 <plugins>
-                    <!-- skip some test cases during the release -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <excludes>
-                                <exclude>**/PerformanceTest.java</exclude>
-                            </excludes>
-                            <argLine>--add-opens java.base/java.lang.reflect=ALL-UNNAMED @{argLine}</argLine>
-                        </configuration>
-                    </plugin>
                     <plugin>
                         <groupId>com.mycila</groupId>
                         <artifactId>license-maven-plugin</artifactId>
@@ -338,6 +357,7 @@
                 <test.coverage.check.skip>true</test.coverage.check.skip>
                 <javadoc.skip>true</javadoc.skip>
                 <spotless.config.execution.skip>true</spotless.config.execution.skip>
+                <skipPerformanceTests>true</skipPerformanceTests>
             </properties>
             <build>
                 <plugins>
@@ -370,17 +390,6 @@
                             <serverId>oss-sonatype</serverId>
                             <nexusUrl>https://oss.sonatype.org/</nexusUrl>
                             <autoReleaseAfterClose>true</autoReleaseAfterClose>
-                        </configuration>
-                    </plugin>
-                    <!-- skip some test cases during the release -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <excludes>
-                                <exclude>**/PerformanceTest.java</exclude>
-                                <argLine>--add-opens java.base/java.lang.reflect=ALL-UNNAMED @{argLine}</argLine>
-                            </excludes>
                         </configuration>
                     </plugin>
                     <!-- replace the bean-utils-library javadoc jar file with the one containing all modules -->
@@ -454,10 +463,16 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${maven.compiler.plugin.version}</version>
                     <configuration>
-                        <source>${maven.compiler.source}</source>
-                        <target>${maven.compiler.target}</target>
+                        <release>${jdk.version}</release>
                         <parameters>true</parameters>
                         <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
                 </plugin>
                 <plugin>
