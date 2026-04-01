@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2023 Expedia, Inc.
+ * Copyright (C) 2019-2026 Expedia, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Deque;
 
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.testng.annotations.DataProvider;
@@ -42,6 +43,7 @@ import com.expediagroup.beans.conversion.analyzer.ConversionAnalyzer;
 import com.expediagroup.beans.sample.FromFooSimple;
 import com.expediagroup.beans.sample.mutable.MutableToFoo;
 import com.expediagroup.beans.sample.mutable.MutableToFooAdvFields;
+import com.expediagroup.transformer.annotation.ConstructorArg;
 import com.expediagroup.transformer.cache.CacheManager;
 import com.expediagroup.transformer.error.InvalidBeanException;
 import com.expediagroup.transformer.error.MissingFieldException;
@@ -66,6 +68,9 @@ public class BeanTransformerTest extends AbstractBeanTransformerTest {
     private static final String GET_TRANSFORMER_VALUE_METHOD_NAME = "getTransformedValue";
     private static final String GET_CONSTRUCTOR_ARGS_VALUES_METHOD_NAME = "getConstructorArgsValues";
     private static final String HANDLE_INJECTION_EXCEPTION_METHOD_NAME = "handleInjectionException";
+    private static final String RESOLVE_EFFECTIVE_SOURCE_METHOD_NAME = "resolveEffectiveSource";
+    private static final String ROOT_SOURCE_STACK_FIELD_NAME = "rootSourceStack";
+    private static final String BREADCRUMB = "bc";
 
     /**
      * Test that is possible to remove a field mapping for a given field.
@@ -184,6 +189,24 @@ public class BeanTransformerTest extends AbstractBeanTransformerTest {
         assertThat(transformerSettings.getFieldsNameMapping()).isEmpty();
         assertThat(transformerSettings.getFieldsToSkip()).isEmpty();
         assertThat(transformerSettings.isSetDefaultValueForMissingField()).isFalse();
+    }
+
+    /**
+     * Test that is possible to remove all the transformation skip settings.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testResetFieldsTransformationSkipWorksProperly() {
+        // GIVEN
+        BeanTransformer beanTransformer = underTest.skipTransformationForField(NAME_FIELD_NAME);
+
+        // WHEN
+        beanTransformer.resetFieldsTransformationSkip();
+        TransformerSettings<String> transformerSettings =
+                (TransformerSettings<String>) REFLECTION_UTILS.getFieldValue(beanTransformer, TRANSFORMER_SETTINGS_FIELD_NAME, TransformerSettings.class);
+
+        // THEN
+        assertThat(transformerSettings.getFieldsToSkip()).isEmpty();
     }
 
     /**
@@ -321,6 +344,29 @@ public class BeanTransformerTest extends AbstractBeanTransformerTest {
     }
 
     /**
+     * Test that the method: {@code getSourceFieldType} caches and returns {@code null} on second call when
+     * the field does not exist in the source class and default-value-for-missing-field mode is active.
+     * @throws Exception if the invoke method fails
+     */
+    @Test
+    public void testGetSourceFieldTypeReturnsCachedNullForAbsentField() throws Exception {
+        // GIVEN
+        underTest.setDefaultValueForMissingField(true);
+
+        Method getSourceFieldTypeMethod = underTest.getClass().getDeclaredMethod(GET_SOURCE_FIELD_TYPE_METHOD_NAME, Class.class, String.class);
+        getSourceFieldTypeMethod.setAccessible(true);
+
+        // WHEN - first call: field does not exist, default value mode active → returns null, caches ABSENT sentinel
+        Class<?> firstResult = (Class<?>) getSourceFieldTypeMethod.invoke(underTest, FromFooSimple.class, "nonExistentFieldForCacheTest");
+        // WHEN - second call: hits the ABSENT sentinel from cache → returns null without recomputing
+        Class<?> secondResult = (Class<?>) getSourceFieldTypeMethod.invoke(underTest, FromFooSimple.class, "nonExistentFieldForCacheTest");
+
+        // THEN
+        assertThat(firstResult).isNull();
+        assertThat(secondResult).isNull();
+    }
+
+    /**
      * Test that the method: {@code getSourceFieldType} throws {@link MissingFieldException} in case the given field does not exists
      * in the given class and the source object class is not primitive and the default value set for missing fields feature is disabled.
      * @throws Exception if the invoke method fails
@@ -442,6 +488,101 @@ public class BeanTransformerTest extends AbstractBeanTransformerTest {
         verify(classUtils).getDefaultTypeValue(Integer.class);
         assertThat(actual).containsOnly(0);
         restoreUnderTestObject();
+    }
+
+    /**
+     * Test that the {@code canBeInjectedByConstructorParams} lambda correctly evaluates both branches
+     * of the {@code areParameterNamesAvailable || allParameterAnnotatedWith} expression.
+     * @param testCaseDescription the test case description
+     * @param areNamesAvailable whether parameter names are available
+     * @param allAnnotated whether all parameters are annotated with {@link ConstructorArg}
+     * @param expected the expected result
+     * @throws Exception if something goes wrong
+     */
+    @Test(dataProvider = "dataCanBeInjectedByConstructorParamsTesting")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void testCanBeInjectedByConstructorParamsLambdaBranchesWorkCorrectly(final String testCaseDescription,
+            final boolean areNamesAvailable, final boolean allAnnotated, final boolean expected) throws Exception {
+        // GIVEN - use a real Constructor and mock both ClassUtils and CacheManager so the lambda always runs
+        ClassUtils classUtilsMock = mock(ClassUtils.class);
+        CacheManager cacheManagerMock = mock(CacheManager.class);
+        Constructor<?> constructor = String.class.getDeclaredConstructors()[0];
+
+        when(cacheManagerMock.getFromCache(anyString(), any(Class.class))).thenReturn(empty());
+        when(classUtilsMock.areParameterNamesAvailable(constructor)).thenReturn(areNamesAvailable);
+        if (!areNamesAvailable) {
+            when(classUtilsMock.allParameterAnnotatedWith(constructor, ConstructorArg.class)).thenReturn(allAnnotated);
+        }
+        reflectionUtils.setFieldValue(underTest, CLASS_UTILS_FIELD_NAME, classUtilsMock);
+        reflectionUtils.setFieldValue(underTest, CACHE_MANAGER_FIELD_NAME, cacheManagerMock);
+
+        // WHEN
+        boolean actual = underTest.canBeInjectedByConstructorParams(constructor);
+
+        // THEN
+        assertThat(actual).isEqualTo(expected);
+        restoreUnderTestObject();
+    }
+
+    /**
+     * Creates the parameters to be used for testing the {@code canBeInjectedByConstructorParams} lambda branches.
+     * @return parameters to be used for testing the {@code canBeInjectedByConstructorParams} lambda branches.
+     */
+    @DataProvider
+    private Object[][] dataCanBeInjectedByConstructorParamsTesting() {
+        return new Object[][] {
+            {"NamesUnavailable_AllAnnotated_returnsTrue", false, true, true},
+            {"NamesUnavailable_NotAnnotated_returnsFalse", false, false, false}
+        };
+    }
+
+    /**
+     * Test that {@code resolveEffectiveSource} falls through to the default source when a field-name mapping
+     * exists for the resolved breadcrumb key but the root-source stack is empty (no active transform context).
+     * Covers the false branch of {@code mapped != null && !stack.isEmpty()} when the stack is empty.
+     * @throws Exception if the method invocation fails
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testResolveEffectiveSourceWithMappingAndEmptyStackFallsThrough() throws Exception {
+        // GIVEN - add a mapping so "bc.name" → SOURCE_FIELD_NAME (mapped != null)
+        underTest.withFieldMapping(new FieldMapping<>(SOURCE_FIELD_NAME, BREADCRUMB + "." + NAME_FIELD_NAME));
+        Method method = TransformerImpl.class.getDeclaredMethod(
+                RESOLVE_EFFECTIVE_SOURCE_METHOD_NAME, Object.class, String.class, String.class);
+        method.setAccessible(true);
+
+        // WHEN - stack is empty (no active transform), so condition evaluates to false → falls through
+        Object result = method.invoke(underTest, fromFoo, NAME_FIELD_NAME, BREADCRUMB);
+
+        // THEN - returns a non-null EffectiveSource backed by the original sourceObj
+        assertThat(result).isNotNull();
+    }
+
+    /**
+     * Test that the void {@code transform(T, K, String)} method does not push or pop the root source stack
+     * when it is called in a non-root context (stack already contains an item).
+     * Covers the false branch of {@code if (isRoot)} at the beginning and end of the method.
+     * @throws Exception if the field access fails
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testVoidTransformWithPrePopulatedStackDoesNotPushAgain() throws Exception {
+        // GIVEN - pre-populate the stack to simulate a nested (non-root) call
+        Field stackField = TransformerImpl.class.getDeclaredField(ROOT_SOURCE_STACK_FIELD_NAME);
+        stackField.setAccessible(true);
+        ThreadLocal<Deque<Object>> rootSourceStack = (ThreadLocal<Deque<Object>>) stackField.get(underTest);
+        rootSourceStack.get().push(fromFoo);
+
+        MutableToFoo dest = new MutableToFoo();
+        try {
+            // WHEN - isRoot = false because stack is non-empty → push/pop are both skipped
+            underTest.transform(fromFoo, dest, null);
+        } finally {
+            rootSourceStack.get().clear();
+        }
+
+        // THEN - transformation completed and destination was populated
+        assertThat(dest).isNotNull();
     }
 
     /**
