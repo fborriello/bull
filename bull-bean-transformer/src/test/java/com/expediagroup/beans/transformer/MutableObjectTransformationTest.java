@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2023 Expedia, Inc.
+ * Copyright (C) 2019-2026 Expedia, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -303,6 +303,21 @@ public class MutableObjectTransformationTest extends AbstractBeanTransformerTest
     }
 
     /**
+     * Test that calling {@code skipTransformationForField} with no arguments is a no-op and does not skip any fields.
+     */
+    @Test
+    public void testSkipTransformationForFieldWithNoArgsDoesNothing() {
+        // GIVEN
+        underTest.skipTransformationForField();
+
+        // WHEN
+        MutableToFoo actual = underTest.transform(fromFoo, MutableToFoo.class);
+
+        // THEN
+        assertThat(actual).usingRecursiveComparison().isEqualTo(fromFoo);
+    }
+
+    /**
      * Test that, given a set of fields for which the transformation has to be skipped, they are actually skipped.
      */
     @Test
@@ -336,6 +351,45 @@ public class MutableObjectTransformationTest extends AbstractBeanTransformerTest
                         (double) fromFooPrimitiveTypes.getPrice(),
                         ACTIVE,
                         fromFooPrimitiveTypes.getUuid());
+        underTest.setPrimitiveTypeConversionEnabled(false);
+    }
+
+    /**
+     * Test that the second transformation hits the null-marker cache entry for a primitive destination
+     * field whose source counterpart is absent (default-value mode active, no conversion function found).
+     */
+    @Test
+    public void testAutomaticPrimitiveTypeTransformationCachesNullConversionForMissingSourceField() {
+        // GIVEN - FromFooSimple has no "age" field; MutableToFooNotExistingFields.age is int (primitive)
+        FromFooSimple fromFooSimple = new FromFooSimple(NAME, ID, ACTIVE);
+        underTest.setPrimitiveTypeConversionEnabled(true).setDefaultValueForMissingField(true);
+
+        // WHEN - first transform: no source type → null-marker stored for the "age" field
+        MutableToFooNotExistingFields first = underTest.transform(fromFooSimple, MutableToFooNotExistingFields.class);
+        // WHEN - second transform: null-marker is found in cache → returns null without recomputing
+        MutableToFooNotExistingFields second = underTest.transform(fromFooSimple, MutableToFooNotExistingFields.class);
+
+        // THEN
+        assertThat(second).usingRecursiveComparison().isEqualTo(first);
+        underTest.setPrimitiveTypeConversionEnabled(false).setDefaultValueForMissingField(false);
+    }
+
+    /**
+     * Test that the second transformation hits the cached {@link com.expediagroup.transformer.model.FieldTransformer}
+     * for a primitive conversion, covering the {@code fromCache.isPresent()} true branch.
+     */
+    @Test
+    public void testAutomaticPrimitiveTypeTransformerCacheHitOnSecondTransform() {
+        // GIVEN
+        underTest.setPrimitiveTypeConversionEnabled(true);
+
+        // WHEN - first transform computes and caches the FieldTransformer for primitive conversions (e.g. String → int for "code")
+        underTest.transform(fromFooPrimitiveTypes, MutableToFooOnlyPrimitiveTypes.class);
+        // WHEN - second transform hits the cached FieldTransformer (covers fromCache.isPresent() == true)
+        MutableToFooOnlyPrimitiveTypes second = underTest.transform(fromFooPrimitiveTypes, MutableToFooOnlyPrimitiveTypes.class);
+
+        // THEN
+        assertThat(second).isNotNull();
         underTest.setPrimitiveTypeConversionEnabled(false);
     }
 
