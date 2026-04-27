@@ -21,7 +21,7 @@
     <groupId>com.expediagroup.beans</groupId>
     <artifactId>bean-utils-library-parent</artifactId>
     <url>https://github.com/ExpediaGroup/bull</url>
-    <version>3.0.4-SNAPSHOT</version>
+    <version>3.0.5-SNAPSHOT</version>
     <packaging>pom</packaging>
     <inceptionYear>2019</inceptionYear>
     <description>
@@ -44,6 +44,7 @@
         <module>bull-converter</module>
         <module>bull-report</module>
         <module>bull-bom</module>
+        <module>bull-benchmark</module>
     </modules>
 
     <properties>
